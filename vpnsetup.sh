@@ -388,7 +388,6 @@ bigecho "Updating IPTables rules..."
   { crontab -l 2>/dev/null; echo "@reboot sleep 15 && service xl2tpd restart > /dev/null 2>&1" ; } | crontab -
 bigecho "Starting services..."
 sysctl -e -q -p
-chmod +x /etc/rc.local
 chmod 600 /etc/ipsec.secrets* /etc/ppp/chap-secrets* /etc/ipsec.d/passwd*
 mkdir -p /run/pluto
 service fail2ban restart 2>/dev/null
