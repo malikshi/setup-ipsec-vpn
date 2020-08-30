@@ -5,20 +5,10 @@
 #
 # DO NOT RUN THIS SCRIPT ON YOUR PC OR MAC!
 #
-# The latest version of this script is available at:
+# Script Credit to
 # https://github.com/hwdsl2/setup-ipsec-vpn
-#
-# Copyright (C) 2014-2020 Lin Song <linsongui@gmail.com>
-# Based on the work of Thomas Sarlandie (Copyright 2012)
-#
-# This work is licensed under the Creative Commons Attribution-ShareAlike 3.0
-# Unported License: http://creativecommons.org/licenses/by-sa/3.0/
-#
-# Attribution required: please include my name in any derivative and let me
-# know how you have improved it!
-
 # =====================================================
-
+# THIS SCRIPT CUSTOMADE For GLOBALSSH.NET
 # Define your own values for these variables
 # - IPsec pre-shared key, VPN username and password
 # - All values MUST be placed inside 'single quotes'
@@ -28,13 +18,7 @@ YOUR_IPSEC_PSK=''
 YOUR_USERNAME=''
 YOUR_PASSWORD=''
 
-# Important notes:   https://git.io/vpnnotes
-# Setup VPN clients: https://git.io/vpnclients
-# IKEv2 guide:       https://git.io/ikev2
-
 # =====================================================
-
-export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 SYS_DT=$(date +%F-%T | tr ':' '_')
 
 exiterr()  { echo "Error: $1" >&2; exit 1; }
@@ -366,7 +350,6 @@ kernel.msgmax = 65536
 kernel.shmmax = $SHM_MAX
 kernel.shmall = $SHM_ALL
 
-net.ipv4.ip_forward = 1
 net.ipv4.conf.all.accept_source_route = 0
 net.ipv4.conf.all.accept_redirects = 0
 net.ipv4.conf.all.send_redirects = 0
@@ -378,25 +361,10 @@ net.ipv4.conf.default.rp_filter = 0
 net.ipv4.conf.$NET_IFACE.send_redirects = 0
 net.ipv4.conf.$NET_IFACE.rp_filter = 0
 
-net.core.wmem_max = 12582912
-net.core.rmem_max = 12582912
-net.ipv4.tcp_rmem = 10240 87380 12582912
-net.ipv4.tcp_wmem = 10240 87380 12582912
 EOF
 fi
 
 bigecho "Updating IPTables rules..."
-
-IPT_FILE=/etc/iptables.rules
-IPT_FILE2=/etc/iptables/rules.v4
-ipt_flag=0
-if ! grep -qs "hwdsl2 VPN script" "$IPT_FILE"; then
-  ipt_flag=1
-fi
-
-if [ "$ipt_flag" = "1" ]; then
-  service fail2ban stop >/dev/null 2>&1
-  iptables-save > "$IPT_FILE.old-$SYS_DT"
   iptables -I INPUT 1 -p udp --dport 1701 -m policy --dir in --pol none -j DROP
   iptables -I INPUT 2 -m conntrack --ctstate INVALID -j DROP
   iptables -I INPUT 3 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
@@ -415,116 +383,17 @@ if [ "$ipt_flag" = "1" ]; then
   iptables -A FORWARD -j DROP
   iptables -t nat -I POSTROUTING -s "$XAUTH_NET" -o "$NET_IFACE" -m policy --dir out --pol none -j MASQUERADE
   iptables -t nat -I POSTROUTING -s "$L2TP_NET" -o "$NET_IFACE" -j MASQUERADE
-  echo "# Modified by hwdsl2 VPN script" > "$IPT_FILE"
-  iptables-save >> "$IPT_FILE"
-
-  if [ -f "$IPT_FILE2" ]; then
-    conf_bk "$IPT_FILE2"
-    /bin/cp -f "$IPT_FILE" "$IPT_FILE2"
-  fi
-fi
-
-bigecho "Enabling services on boot..."
-
-IPT_PST=/etc/init.d/iptables-persistent
-IPT_PST2=/usr/share/netfilter-persistent/plugins.d/15-ip4tables
-ipt_load=1
-if [ -f "$IPT_FILE2" ] && { [ -f "$IPT_PST" ] || [ -f "$IPT_PST2" ]; }; then
-  ipt_load=0
-fi
-
-if [ "$ipt_load" = "1" ]; then
-  mkdir -p /etc/network/if-pre-up.d
-cat > /etc/network/if-pre-up.d/iptablesload <<'EOF'
-#!/bin/sh
-iptables-restore < /etc/iptables.rules
-exit 0
-EOF
-  chmod +x /etc/network/if-pre-up.d/iptablesload
-
-  if [ -f /usr/sbin/netplan ]; then
-    mkdir -p /etc/systemd/system
-cat > /etc/systemd/system/load-iptables-rules.service <<'EOF'
-[Unit]
-Description = Load /etc/iptables.rules
-DefaultDependencies=no
-
-Before=network-pre.target
-Wants=network-pre.target
-
-Wants=systemd-modules-load.service local-fs.target
-After=systemd-modules-load.service local-fs.target
-
-[Service]
-Type=oneshot
-ExecStart=/etc/network/if-pre-up.d/iptablesload
-
-[Install]
-WantedBy=multi-user.target
-EOF
-    systemctl enable load-iptables-rules 2>/dev/null
-  fi
-fi
-
-for svc in fail2ban ipsec xl2tpd; do
-  update-rc.d "$svc" enable >/dev/null 2>&1
-  systemctl enable "$svc" 2>/dev/null
-done
-
-if ! grep -qs "hwdsl2 VPN script" /etc/rc.local; then
-  if [ -f /etc/rc.local ]; then
-    conf_bk "/etc/rc.local"
-    sed --follow-symlinks -i '/^exit 0/d' /etc/rc.local
-  else
-    echo '#!/bin/sh' > /etc/rc.local
-  fi
-cat >> /etc/rc.local <<'EOF'
-
-# Added by hwdsl2 VPN script
-(sleep 15
-service ipsec restart
-service xl2tpd restart
-echo 1 > /proc/sys/net/ipv4/ip_forward)&
-exit 0
-EOF
-fi
-
+  iptables-save > /etc/iptables/rules.v4
+  { crontab -l 2>/dev/null; echo "@reboot sleep 15 && service ipsec restart > /dev/null 2>&1" ; } | crontab -
+  { crontab -l 2>/dev/null; echo "@reboot sleep 15 && service xl2tpd restart > /dev/null 2>&1" ; } | crontab -
 bigecho "Starting services..."
-
 sysctl -e -q -p
-
 chmod +x /etc/rc.local
 chmod 600 /etc/ipsec.secrets* /etc/ppp/chap-secrets* /etc/ipsec.d/passwd*
-
 mkdir -p /run/pluto
 service fail2ban restart 2>/dev/null
 service ipsec restart 2>/dev/null
 service xl2tpd restart 2>/dev/null
-
-cat <<EOF
-
-================================================
-
-IPsec VPN server is now ready for use!
-
-Connect to your new VPN with these details:
-
-Server IP: $PUBLIC_IP
-IPsec PSK: $VPN_IPSEC_PSK
-Username: $VPN_USER
-Password: $VPN_PASSWORD
-
-Write these down. You'll need them to connect!
-
-Important notes:   https://git.io/vpnnotes
-Setup VPN clients: https://git.io/vpnclients
-IKEv2 guide:       https://git.io/ikev2
-
-================================================
-
-EOF
-
-}
 
 ## Defer setup until we have the complete script
 vpnsetup "$@"
