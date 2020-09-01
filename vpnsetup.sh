@@ -393,6 +393,7 @@ mkdir -p /run/pluto
 service fail2ban restart 2>/dev/null
 service ipsec restart 2>/dev/null
 service xl2tpd restart 2>/dev/null
+systemctl enable ipsec
 }
 ## Defer setup until we have the complete script
 vpnsetup "$@"
