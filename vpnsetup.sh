@@ -263,7 +263,7 @@ conn xauth-psk
   rightmodecfgclient=yes
   modecfgpull=yes
   xauthby=file
-  ike-frag=yes
+  fragmentation=yes
   cisco-unity=yes
   also=shared
 
