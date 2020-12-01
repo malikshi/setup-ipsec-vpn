@@ -60,7 +60,7 @@ def_iface=$(route 2>/dev/null | grep -m 1 '^default' | grep -o '[^ ]*$')
 [ -z "$def_iface" ] && def_iface=$(ip -4 route list 0/0 2>/dev/null | grep -m 1 -Po '(?<=dev )(\S+)')
 def_state=$(cat "/sys/class/net/$def_iface/operstate" 2>/dev/null)
 if [ -n "$def_state" ] && [ "$def_state" != "down" ]; then
-  if ! uname -m | grep -qi '^arm'; then
+  if ! uname -m | grep -qi -e '^arm' -e '^aarch64'; then
     case "$def_iface" in
       wl*)
         exiterr "Wireless interface '$def_iface' detected. DO NOT run this script on your PC or Mac!"
@@ -135,7 +135,7 @@ apt-get -yq update || exiterr "'apt-get update' failed."
 
 bigecho "Installing packages required for setup..."
 
-apt-get -yq install wget dnsutils openssl \
+apt-get -yq install wget dnsutils \
   iptables iproute2 gawk grep sed net-tools || exiterr2
 
 bigecho "Trying to auto discover IP of this server..."
@@ -166,7 +166,7 @@ apt-get -yq install fail2ban || exiterr2
 
 bigecho "Compiling and installing Libreswan..."
 
-SWAN_VER=3.32
+SWAN_VER=4.1
 swan_file="libreswan-$SWAN_VER.tar.gz"
 swan_url1="https://github.com/libreswan/libreswan/archive/v$SWAN_VER.tar.gz"
 swan_url2="https://download.libreswan.org/$swan_file"
@@ -176,14 +176,17 @@ fi
 /bin/rm -rf "/opt/src/libreswan-$SWAN_VER"
 tar xzf "$swan_file" && /bin/rm -f "$swan_file"
 cd "libreswan-$SWAN_VER" || exit 1
+sed -i 's/ sysv )/ sysvinit )/' programs/setup/setup.in
 cat > Makefile.inc.local <<'EOF'
-WERROR_CFLAGS = -w
-USE_DNSSEC = false
-USE_DH2 = true
-USE_DH31 = false
-USE_NSS_AVA_COPY = true
-USE_NSS_IPSEC_PROFILE = false
-USE_GLIBC_KERN_FLIP_HEADERS = true
+WERROR_CFLAGS=-w
+USE_DNSSEC=false
+USE_DH2=true
+USE_DH31=false
+USE_NSS_AVA_COPY=true
+USE_NSS_IPSEC_PROFILE=false
+USE_GLIBC_KERN_FLIP_HEADERS=true
+USE_NSS_KDF=false
+FINALNSSDIR=/etc/ipsec.d
 EOF
 if ! grep -qs IFLA_XFRM_LINK /usr/include/linux/if_link.h; then
   echo "USE_XFRM_INTERFACE_IFLA_HEADER = true" >> Makefile.inc.local
@@ -208,8 +211,8 @@ L2TP_LOCAL=${VPN_L2TP_LOCAL:-'192.168.42.1'}
 L2TP_POOL=${VPN_L2TP_POOL:-'192.168.42.10-192.168.42.250'}
 XAUTH_NET=${VPN_XAUTH_NET:-'192.168.43.0/24'}
 XAUTH_POOL=${VPN_XAUTH_POOL:-'192.168.43.10-192.168.43.250'}
-DNS_SRV1=${VPN_DNS_SRV1:-'8.8.8.8'}
-DNS_SRV2=${VPN_DNS_SRV2:-'8.8.4.4'}
+DNS_SRV1=${VPN_DNS_SRV1:-'1.1.1.1'}
+DNS_SRV2=${VPN_DNS_SRV2:-'1.0.0.1'}
 DNS_SRVS="\"$DNS_SRV1 $DNS_SRV2\""
 [ -n "$VPN_DNS_SRV1" ] && [ -z "$VPN_DNS_SRV2" ] && DNS_SRVS="$DNS_SRV1"
 
@@ -347,14 +350,10 @@ cat >> /etc/sysctl.conf <<EOF
 # Added by hwdsl2 VPN script
 kernel.msgmnb = 65536
 kernel.msgmax = 65536
-kernel.shmmax = $SHM_MAX
-kernel.shmall = $SHM_ALL
 
-net.ipv4.conf.all.accept_source_route = 0
 net.ipv4.conf.all.accept_redirects = 0
 net.ipv4.conf.all.send_redirects = 0
 net.ipv4.conf.all.rp_filter = 0
-net.ipv4.conf.default.accept_source_route = 0
 net.ipv4.conf.default.accept_redirects = 0
 net.ipv4.conf.default.send_redirects = 0
 net.ipv4.conf.default.rp_filter = 0
