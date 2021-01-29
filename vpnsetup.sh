@@ -310,8 +310,8 @@ ipcp-accept-local
 ipcp-accept-remote
 noccp
 auth
-mtu 1280
-mru 1280
+mtu 1200
+mru 1200
 proxyarp
 lcp-echo-failure 4
 lcp-echo-interval 30
